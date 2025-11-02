@@ -1,9 +1,7 @@
-# %%
 import numpy as np
 from pyzx.simulation.gen import make_g_list, chars
 
 
-# %%
 n_params = 5
 g_list = make_g_list(n_params)
 num_graphs = len(g_list)
@@ -15,21 +13,6 @@ print("(1+e^x)/e^((1/2)x)\t (e^(x*y))\t phPair")
 # B    e^x/2   - scalar.phasevars_halfpi[1] [3]
 # C    e^(x*y) - scalar.phasevars_pi_pair
 # D    (1+e^x+e^y+e^(x+y)) - scalar.phasepairs
-
-data = []
-for i in range(num_graphs):
-    g_i = g_list[i]
-    count_node = len(g_i.scalar.phasenodes)
-    count_half_pi = len(g_i.scalar.phasevars_halfpi[1]) + len(
-        g_i.scalar.phasevars_halfpi[3]
-    )
-    count_pi_pair = len(g_i.scalar.phasevars_pi) + len(g_i.scalar.phasevars_pi_pair)
-    count_phase_pair = len(g_i.scalar.phasepairs)
-
-    row = [count_node + count_half_pi, count_pi_pair, count_phase_pair]
-    data.append(row)
-data = np.array(data)
-print(np.max(data, axis=0))
 
 
 # %% COMPILATION ------------------
