@@ -1,5 +1,5 @@
 from typing import NamedTuple
-import numpy as np
+import jax.numpy as jnp
 
 
 class CompiledCircuit(NamedTuple):
@@ -16,26 +16,26 @@ class CompiledCircuit(NamedTuple):
     # Type A/B: Node and Half-Pi Terms
     # Shape: (n_ab_terms, 2 + n_params)
     # Columns: [term_type, const_phase, param_bit_0, ..., param_bit_{n_params-1}]
-    ab_terms: np.ndarray  # dtype: uint8
-    ab_graph_ids: np.ndarray  # dtype: int32, shape: (n_ab_terms,)
+    ab_terms: jnp.ndarray  # dtype: uint8
+    ab_graph_ids: jnp.ndarray  # dtype: int32, shape: (n_ab_terms,)
 
     # Type C: Pi-Pair Terms
     # Shape: (n_c_terms, 2*(n_params+1))
     # Columns: [param_bits_a[0..n_params], param_bits_b[0..n_params]]
-    c_terms: np.ndarray  # dtype: uint8
-    c_graph_ids: np.ndarray  # dtype: int32, shape: (n_c_terms,)
+    c_terms: jnp.ndarray  # dtype: uint8
+    c_graph_ids: jnp.ndarray  # dtype: int32, shape: (n_c_terms,)
 
     # Type D: Phase Pairs
     # Shape: (n_d_terms, 2 + 2*n_params)
     # Columns: [const_alpha, const_beta, param_bits_a[0..n_params-1], param_bits_b[0..n_params-1]]
-    d_terms: np.ndarray  # dtype: uint8
-    d_graph_ids: np.ndarray  # dtype: int32, shape: (n_d_terms,)
+    d_terms: jnp.ndarray  # dtype: uint8
+    d_graph_ids: jnp.ndarray  # dtype: int32, shape: (n_d_terms,)
 
     # Static per-graph data
     # Shape: (num_graphs,)
-    phase_indices: np.ndarray  # dtype: uint8 (values 0-7)
-    power2: np.ndarray  # dtype: int8
-    floatfactor: np.ndarray  # dtype: complex128
+    phase_indices: jnp.ndarray  # dtype: uint8 (values 0-7)
+    power2: jnp.ndarray  # dtype: int32
+    floatfactor: jnp.ndarray  # dtype: complex64
 
 
 def compile_circuit(g_list, n_params, chars):
@@ -74,11 +74,11 @@ def compile_circuit(g_list, n_params, chars):
                 compiled_ab.append(row_data)
 
     ab_terms = (
-        np.array(compiled_ab, dtype=np.uint8)
+        jnp.array(compiled_ab, dtype=jnp.uint8)
         if compiled_ab
-        else np.zeros((0, 2 + n_params), dtype=np.uint8)
+        else jnp.zeros((0, 2 + n_params), dtype=jnp.uint8)
     )
-    ab_graph_ids = np.array(g_coord_ab, dtype=np.int32)
+    ab_graph_ids = jnp.array(g_coord_ab, dtype=jnp.int32)
 
     # ========================================================================
     # Type C compilation
@@ -101,11 +101,11 @@ def compile_circuit(g_list, n_params, chars):
             compiled_c.append(bitstr)
 
     c_terms = (
-        np.array(compiled_c, dtype=np.uint8)
+        jnp.array(compiled_c, dtype=jnp.uint8)
         if compiled_c
-        else np.zeros((0, 2 * (n_params + 1)), dtype=np.uint8)
+        else jnp.zeros((0, 2 * (n_params + 1)), dtype=jnp.uint8)
     )
-    c_graph_ids = np.array(g_coord_c, dtype=np.int32)
+    c_graph_ids = jnp.array(g_coord_c, dtype=jnp.int32)
 
     # ========================================================================
     # Type D compilation
@@ -129,18 +129,20 @@ def compile_circuit(g_list, n_params, chars):
             compiled_d.append(row_data)
 
     d_terms = (
-        np.array(compiled_d, dtype=np.uint8)
+        jnp.array(compiled_d, dtype=jnp.uint8)
         if compiled_d
-        else np.zeros((0, 2 + 2 * n_params), dtype=np.uint8)
+        else jnp.zeros((0, 2 + 2 * n_params), dtype=jnp.uint8)
     )
-    d_graph_ids = np.array(g_coord_d, dtype=np.int32)
+    d_graph_ids = jnp.array(g_coord_d, dtype=jnp.int32)
 
     # ========================================================================
     # Static data
     # ========================================================================
-    phase_indices = np.array([int(g.scalar.phase * 4) for g in g_list], dtype=np.uint8)
-    power2 = np.array([g.scalar.power2 for g in g_list], dtype=np.int8)
-    floatfactor = np.array([g.scalar.floatfactor for g in g_list], dtype=np.complex128)
+    phase_indices = jnp.array(
+        [int(g.scalar.phase * 4) for g in g_list], dtype=jnp.uint8
+    )
+    power2 = jnp.array([g.scalar.power2 for g in g_list], dtype=jnp.int32)
+    floatfactor = jnp.array([g.scalar.floatfactor for g in g_list], dtype=jnp.complex64)
 
     return CompiledCircuit(
         num_graphs=num_graphs,
