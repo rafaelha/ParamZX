@@ -137,6 +137,7 @@ for i in range(num_graphs):
 compiled_static = np.array(compiled_static)
 
 #%%  EXECUTION ------------------
+print("Executing...")
 # From this data, calculate the final result... (node-type terms)
 paramVals = [1,0,1,0,0]  # values of the parameters
 

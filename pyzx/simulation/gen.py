@@ -2,6 +2,7 @@ import pyzx as zx
 from pyzx.utils import VertexType
 from pyzx.simulation.circs import strCirc
 from pyzx.simulation.stab import find_stab
+from functools import cache
 
 
 chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -48,7 +49,7 @@ def apply_state(g: zx.Graph, vertex_types: str, phases: list[str]) -> None:
             )
     g.set_inputs(tuple(new_inputs))
 
-
+@cache
 def make_g_list(n_params: int):
     c = zx.qasm(strCirc)
     n = c.qubits
