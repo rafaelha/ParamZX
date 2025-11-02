@@ -37,6 +37,7 @@ print(np.max(data, axis=0))
 # node and half_pi terms
 # graph_id, multiplier, const, bitstr
 compiled_ab = []
+g_coord_ab = []
 
 char_to_idx = {char: i for i, char in enumerate(chars)}
 
@@ -48,8 +49,9 @@ for i in range(num_graphs):
             bitstr[char_to_idx[v]] = 1
         const_term = int(g_i.scalar.phasenodes[term] * 4)
 
+        g_coord_ab.append(i)
+
         row_data = []
-        row_data.append(i)  # Graph_id
         row_data.append(4)  # type: node type = 4 (as this is a multiplier, 4/4 = 1x)
         row_data.append(const_term)  # const
         row_data.extend(bitstr)
@@ -64,19 +66,22 @@ for i in range(num_graphs):
             # (1/2)*4 = 2 or (3/2)*4 = 6 - this (divided by 4) is a multiplier
             ttype = int((j / 2) * 4)
 
+            g_coord_ab.append(i)
+
             row_data = []
-            row_data.append(i)  # Graph_id
             row_data.append(ttype)  # type
             row_data.append(const_term)  # const
             row_data.extend(bitstr)
             compiled_ab.append(row_data)
 
 
-compiled_ab = np.array(compiled_ab)
+compiled_ab = np.array(compiled_ab).astype(np.uint8)
+g_coord_ab = np.array(g_coord_ab)
 
 char_to_idx = {char: i + 1 for i, char in enumerate(chars)}
 char_to_idx["1"] = 0
 compiled_c = []
+g_coord_c = []
 
 for i in range(num_graphs):
     graph = g_list[i].copy()
@@ -88,15 +93,18 @@ for i in range(num_graphs):
         for p in p_set[1]:
             bitstr[char_to_idx[p] + (n_params + 1)] = 1
 
+        g_coord_c.append(i)
+
         row_data = []
-        row_data.append(i)  # Graph_id
         row_data.extend(bitstr)
         compiled_c.append(row_data)
 
-compiled_c = np.array(compiled_c)
+compiled_c = np.array(compiled_c).astype(np.uint8)
+g_coord_c = np.array(g_coord_c)
 
 n_ancil = 3  # Extra bits needed: Multiplier, const term alpha, const term beta
 compiled_d = []
+g_coord_d = []
 char_to_idx = {char: i for i, char in enumerate(chars)}
 
 for i in range(num_graphs):
@@ -110,28 +118,21 @@ for i in range(num_graphs):
         const_term_a = int(graph.scalar.phasepairs[pp].alpha)
         const_term_b = int(graph.scalar.phasepairs[pp].beta)
 
+        g_coord_d.append(i)
+
         row_data = []
-        row_data.append(i)  # Graph_id
         row_data.append(const_term_a)  # const term alpha
         row_data.append(const_term_b)  # const term beta
         row_data.extend(bitstr)
         compiled_d.append(row_data)
 
-compiled_d = np.array(compiled_d)
+compiled_d = np.array(compiled_d).astype(np.uint8)
+g_coord_d = np.array(g_coord_d)
 
+compiled_phase_idx = np.array([int(g.scalar.phase * 4) for g in g_list])
+compiled_power2 = np.array([g.scalar.power2 for g in g_list])
+compiled_floatfactor = np.array([g.scalar.floatfactor for g in g_list])
 
-compiled_static = []
-
-for i in range(num_graphs):
-    graph = g_list[i]
-    row_data = []
-    row_data.append(int(graph.scalar.phase * 4))  # phase
-    row_data.append(graph.scalar.power2)  # power2
-    row_data.append(graph.scalar.floatfactor.real)  # float factor (real part)
-    row_data.append(graph.scalar.floatfactor.imag)  # float factor (imag part)
-    compiled_static.append(row_data)
-
-compiled_static = np.array(compiled_static)
 
 # %%  VECTORIZED EXECUTION ------------------
 print("Executing (vectorized)...")
@@ -145,16 +146,16 @@ phase_lut = np.exp(1j * np.pi * np.arange(8) / 4)
 # ============================================================================
 # TYPE A/B: Node and Half-Pi Terms
 # ============================================================================
-inp = np.array([1, 1, 1] + param_vals.tolist())
+inp = np.array([1, 1] + param_vals.tolist())
 compiled_ab_eval = compiled_ab * inp
 
 # Extract columns
-graph_ids_ab = compiled_ab_eval[:, 0]
-ttype = compiled_ab_eval[:, 1]
-const = compiled_ab_eval[:, 2]
+graph_ids_ab = g_coord_ab
+ttype = compiled_ab_eval[:, 0]
+const = compiled_ab_eval[:, 1]
 
 # Vectorized phase calculation
-rowsum = np.sum(compiled_ab_eval[:, 3:], axis=1) % 2
+rowsum = np.sum(compiled_ab_eval[:, 2:], axis=1) % 2
 phase_idx = ((4 * rowsum + const) % 8) * ttype // 4
 
 # Lookup exponentials
@@ -171,12 +172,12 @@ np.multiply.at(summands_ab, graph_ids_ab, term_vals_ab)
 # ============================================================================
 # TYPE C: Pi-Pair Terms
 # ============================================================================
-inp = np.array([1, 1] + param_vals.tolist() + [1] + param_vals.tolist())
+inp = np.array([1] + param_vals.tolist() + [1] + param_vals.tolist())
 compiled_c_eval = compiled_c * inp
 
-graph_ids_c = compiled_c_eval[:, 0]
-rowsum_a = np.sum(compiled_c_eval[:, 1 : n_params + 2], axis=1) % 2
-rowsum_b = np.sum(compiled_c_eval[:, n_params + 2 :], axis=1) % 2
+graph_ids_c = g_coord_c
+rowsum_a = np.sum(compiled_c_eval[:, : n_params + 1], axis=1) % 2
+rowsum_b = np.sum(compiled_c_eval[:, n_params + 1 :], axis=1) % 2
 
 # XOR logic: (-1)^(A AND B) = 1 - 2*(A AND B)
 term_vals_c = 1 - 2 * (rowsum_a * rowsum_b)
@@ -189,17 +190,17 @@ np.multiply.at(summands_c, graph_ids_c, term_vals_c)
 # ============================================================================
 # TYPE D: Phase Pairs
 # ============================================================================
-inp = np.array([1, 1, 1] + (param_vals.tolist() * 2))
+inp = np.array([1, 1] + (param_vals.tolist() * 2))
 compiled_d_eval = compiled_d * inp
 
-graph_ids_d = compiled_d_eval[:, 0]
-n_ancil = 3
+graph_ids_d = g_coord_d
+n_ancil = 2
 
 rowsum_a = np.sum(compiled_d_eval[:, n_ancil : n_params + n_ancil], axis=1) % 2
 rowsum_b = np.sum(compiled_d_eval[:, n_params + n_ancil :], axis=1) % 2
 
-alpha = (compiled_d_eval[:, 1] + rowsum_a * 4) % 8
-beta = (compiled_d_eval[:, 2] + rowsum_b * 4) % 8
+alpha = (compiled_d_eval[:, 0] + rowsum_a * 4) % 8
+beta = (compiled_d_eval[:, 1] + rowsum_b * 4) % 8
 gamma = (alpha + beta) % 8
 
 # Vectorized complex exponentials
@@ -213,10 +214,6 @@ np.multiply.at(summands_d, graph_ids_d, term_vals_d)
 # ============================================================================
 # FINAL RESULT
 # ============================================================================
-# Extract static terms into arrays
-phases = compiled_static[:, 0].astype(int)
-power2s = compiled_static[:, 1].astype(int)
-floatfactors = compiled_static[:, 2] + 1j * compiled_static[:, 3]
 
 # Vectorized final computation
 root2 = np.sqrt(2)
@@ -224,13 +221,13 @@ contributions = (
     summands_ab
     * summands_c
     * summands_d
-    * phase_lut[phases]
-    * root2**power2s
-    * floatfactors
+    * phase_lut[compiled_phase_idx]
+    * root2**compiled_power2
+    * compiled_floatfactor
 )
 
 result = np.sum(contributions)
 
 print(f"Result: {result}")
-assert np.isclose(result,0.0683018803681063)
+assert np.isclose(result, 0.0683018803681063)
 print("✓ Vectorized evaluation matches expected result!")
