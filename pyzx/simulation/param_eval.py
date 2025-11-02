@@ -118,6 +118,18 @@ def evaluate(circuit: CompiledCircuit, param_vals):
     return result
 
 
+evaluate_batch = jax.vmap(evaluate, in_axes=(None, 0))
+
+param_batch = jnp.array(
+    [
+        [1, 0, 1, 0, 0],
+        [1, 0, 1, 0, 0],
+        [1, 0, 1, 0, 0],
+    ]
+)
+result_batch = evaluate_batch(circuit, param_batch)
+print(f"Result batch: {result_batch}")
+
 result = evaluate(circuit, param_vals)
 
 print(f"Result: {result}")
