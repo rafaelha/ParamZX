@@ -1,5 +1,6 @@
 import numpy as np
 from pyzx.simulation.gen import make_g_list, chars
+from pyzx.simulation.compile import compile_circuit
 
 
 n_params = 5
@@ -7,118 +8,19 @@ g_list = make_g_list(n_params)
 num_graphs = len(g_list)
 
 
-print("Number of terms per graph...")
-print("(1+e^x)/e^((1/2)x)\t (e^(x*y))\t phPair")
-# node (1+e^x) - scalar.phasenodes
-# B    e^x/2   - scalar.phasevars_halfpi[1] [3]
-# C    e^(x*y) - scalar.phasevars_pi_pair
-# D    (1+e^x+e^y+e^(x+y)) - scalar.phasepairs
-
-
 # %% COMPILATION ------------------
 
-# node and half_pi terms
-# graph_id, multiplier, const, bitstr
-compiled_ab = []
-g_coord_ab = []
+circuit = compile_circuit(g_list, n_params, chars)
 
-char_to_idx = {char: i for i, char in enumerate(chars)}
-
-for i in range(num_graphs):
-    g_i = g_list[i]
-    for term in range(len(g_i.scalar.phasenodevars)):
-        bitstr = [0] * n_params
-        for v in g_i.scalar.phasenodevars[term]:
-            bitstr[char_to_idx[v]] = 1
-        const_term = int(g_i.scalar.phasenodes[term] * 4)
-
-        g_coord_ab.append(i)
-
-        row_data = []
-        row_data.append(4)  # type: node type = 4 (as this is a multiplier, 4/4 = 1x)
-        row_data.append(const_term)  # const
-        row_data.extend(bitstr)
-        compiled_ab.append(row_data)
-
-    for j in [1, 3]:
-        for term in range(len(g_i.scalar.phasevars_halfpi[j])):
-            bitstr = [0] * n_params
-            for v in g_i.scalar.phasevars_halfpi[j][term]:
-                bitstr[char_to_idx[v]] = 1
-            const_term = 0
-            # (1/2)*4 = 2 or (3/2)*4 = 6 - this (divided by 4) is a multiplier
-            ttype = int((j / 2) * 4)
-
-            g_coord_ab.append(i)
-
-            row_data = []
-            row_data.append(ttype)  # type
-            row_data.append(const_term)  # const
-            row_data.extend(bitstr)
-            compiled_ab.append(row_data)
-
-
-compiled_ab = np.array(compiled_ab).astype(np.uint8)
-g_coord_ab = np.array(g_coord_ab)
-
-char_to_idx = {char: i + 1 for i, char in enumerate(chars)}
-char_to_idx["1"] = 0
-compiled_c = []
-g_coord_c = []
-
-for i in range(num_graphs):
-    graph = g_list[i].copy()
-
-    for p_set in graph.scalar.phasevars_pi_pair:
-        bitstr = [0] * (n_params + 1) * 2
-        for p in p_set[0]:
-            bitstr[char_to_idx[p]] = 1
-        for p in p_set[1]:
-            bitstr[char_to_idx[p] + (n_params + 1)] = 1
-
-        g_coord_c.append(i)
-
-        row_data = []
-        row_data.extend(bitstr)
-        compiled_c.append(row_data)
-
-compiled_c = np.array(compiled_c).astype(np.uint8)
-g_coord_c = np.array(g_coord_c)
-
-n_ancil = 3  # Extra bits needed: Multiplier, const term alpha, const term beta
-compiled_d = []
-g_coord_d = []
-char_to_idx = {char: i for i, char in enumerate(chars)}
-
-for i in range(num_graphs):
-    graph = g_list[i]
-    for pp in range(len(graph.scalar.phasepairs)):
-        bitstr = [0] * n_params * 2
-        for v in graph.scalar.phasepairs[pp].paramsA:
-            bitstr[char_to_idx[v]] = 1
-        for v in graph.scalar.phasepairs[pp].paramsB:
-            bitstr[char_to_idx[v] + n_params] = 1
-        const_term_a = int(graph.scalar.phasepairs[pp].alpha)
-        const_term_b = int(graph.scalar.phasepairs[pp].beta)
-
-        g_coord_d.append(i)
-
-        row_data = []
-        row_data.append(const_term_a)  # const term alpha
-        row_data.append(const_term_b)  # const term beta
-        row_data.extend(bitstr)
-        compiled_d.append(row_data)
-
-compiled_d = np.array(compiled_d).astype(np.uint8)
-g_coord_d = np.array(g_coord_d)
-
-compiled_phase_idx = np.array([int(g.scalar.phase * 4) for g in g_list])
-compiled_power2 = np.array([g.scalar.power2 for g in g_list])
-compiled_floatfactor = np.array([g.scalar.floatfactor for g in g_list])
+print("Compiled circuit:")
+print(f"  {circuit.num_graphs} graphs, {circuit.n_params} parameters")
+print(f"  {len(circuit.ab_terms)} AB terms")
+print(f"  {len(circuit.c_terms)} C terms")
+print(f"  {len(circuit.d_terms)} D terms")
 
 
 # %%  VECTORIZED EXECUTION ------------------
-print("Executing (vectorized)...")
+print("\nExecuting (vectorized)...")
 
 # Parameter values
 param_vals = np.array([1, 0, 1, 0, 0])
@@ -129,69 +31,75 @@ phase_lut = np.exp(1j * np.pi * np.arange(8) / 4)
 # ============================================================================
 # TYPE A/B: Node and Half-Pi Terms
 # ============================================================================
-inp = np.array([1, 1] + param_vals.tolist())
-compiled_ab_eval = compiled_ab * inp
+if len(circuit.ab_terms) > 0:
+    inp = np.array([1, 1] + param_vals.tolist())
+    ab_eval = circuit.ab_terms * inp
 
-# Extract columns
-graph_ids_ab = g_coord_ab
-ttype = compiled_ab_eval[:, 0]
-const = compiled_ab_eval[:, 1]
+    # Extract columns
+    ttype = ab_eval[:, 0]
+    const = ab_eval[:, 1]
 
-# Vectorized phase calculation
-rowsum = np.sum(compiled_ab_eval[:, 2:], axis=1) % 2
-phase_idx = ((4 * rowsum + const) % 8) * ttype // 4
+    # Vectorized phase calculation
+    rowsum = np.sum(ab_eval[:, 2:], axis=1) % 2
+    phase_idx = ((4 * rowsum + const) % 8) * ttype // 4
 
-# Lookup exponentials
-term_vals_ab = phase_lut[phase_idx]
+    # Lookup exponentials
+    term_vals_ab = phase_lut[phase_idx]
 
-# Handle special case (TODO from original)
-term_vals_ab[ttype == 4] += 1
+    # Handle special case (TODO from original)
+    term_vals_ab[ttype == 4] += 1
 
-# Aggregate by graph_id using product
-summands_ab = np.ones(num_graphs, dtype=complex)
-np.multiply.at(summands_ab, graph_ids_ab, term_vals_ab)
+    # Aggregate by graph_id using product
+    summands_ab = np.ones(circuit.num_graphs, dtype=complex)
+    np.multiply.at(summands_ab, circuit.ab_graph_ids, term_vals_ab)
+else:
+    summands_ab = np.ones(circuit.num_graphs, dtype=complex)
 
 
 # ============================================================================
 # TYPE C: Pi-Pair Terms
 # ============================================================================
-inp = np.array([1] + param_vals.tolist() + [1] + param_vals.tolist())
-compiled_c_eval = compiled_c * inp
+if len(circuit.c_terms) > 0:
+    inp = np.array([1] + param_vals.tolist() + [1] + param_vals.tolist())
+    c_eval = circuit.c_terms * inp
 
-graph_ids_c = g_coord_c
-rowsum_a = np.sum(compiled_c_eval[:, : n_params + 1], axis=1) % 2
-rowsum_b = np.sum(compiled_c_eval[:, n_params + 1 :], axis=1) % 2
+    rowsum_a = np.sum(c_eval[:, : circuit.n_params + 1], axis=1) % 2
+    rowsum_b = np.sum(c_eval[:, circuit.n_params + 1 :], axis=1) % 2
 
-# XOR logic: (-1)^(A AND B) = 1 - 2*(A AND B)
-term_vals_c = 1 - 2 * (rowsum_a * rowsum_b)
+    # XOR logic: (-1)^(A AND B) = 1 - 2*(A AND B)
+    term_vals_c = 1 - 2 * (rowsum_a * rowsum_b)
 
-# Aggregate by graph_id
-summands_c = np.ones(num_graphs, dtype=complex)
-np.multiply.at(summands_c, graph_ids_c, term_vals_c)
+    # Aggregate by graph_id
+    summands_c = np.ones(circuit.num_graphs, dtype=complex)
+    np.multiply.at(summands_c, circuit.c_graph_ids, term_vals_c)
+else:
+    summands_c = np.ones(circuit.num_graphs, dtype=complex)
 
 
 # ============================================================================
 # TYPE D: Phase Pairs
 # ============================================================================
-inp = np.array([1, 1] + (param_vals.tolist() * 2))
-compiled_d_eval = compiled_d * inp
+if len(circuit.d_terms) > 0:
+    inp = np.array([1, 1] + (param_vals.tolist() * 2))
+    d_eval = circuit.d_terms * inp
 
-graph_ids_d = g_coord_d
-n_ancil = 2
+    n_ancil = 2
 
-rowsum_a = np.sum(compiled_d_eval[:, n_ancil : n_params + n_ancil], axis=1) % 2
-rowsum_b = np.sum(compiled_d_eval[:, n_params + n_ancil :], axis=1) % 2
+    rowsum_a = np.sum(d_eval[:, n_ancil : circuit.n_params + n_ancil], axis=1) % 2
+    rowsum_b = np.sum(d_eval[:, circuit.n_params + n_ancil :], axis=1) % 2
 
-alpha = (compiled_d_eval[:, 0] + rowsum_a * 4) % 8
-beta = (compiled_d_eval[:, 1] + rowsum_b * 4) % 8
-gamma = (alpha + beta) % 8
+    alpha = (d_eval[:, 0] + rowsum_a * 4) % 8
+    beta = (d_eval[:, 1] + rowsum_b * 4) % 8
+    gamma = (alpha + beta) % 8
 
-# Vectorized complex exponentials
-term_vals_d = 1.0 + phase_lut[alpha] + phase_lut[beta] - phase_lut[gamma]
+    # Vectorized complex exponentials
+    term_vals_d = 1.0 + phase_lut[alpha] + phase_lut[beta] - phase_lut[gamma]
 
-# Aggregate by graph_id
-summands_d = np.ones(num_graphs, dtype=complex)
-np.multiply.at(summands_d, graph_ids_d, term_vals_d)
+    # Aggregate by graph_id
+    summands_d = np.ones(circuit.num_graphs, dtype=complex)
+    np.multiply.at(summands_d, circuit.d_graph_ids, term_vals_d)
+else:
+    summands_d = np.ones(circuit.num_graphs, dtype=complex)
 
 
 # ============================================================================
@@ -204,9 +112,9 @@ contributions = (
     summands_ab
     * summands_c
     * summands_d
-    * phase_lut[compiled_phase_idx]
-    * root2**compiled_power2
-    * compiled_floatfactor
+    * phase_lut[circuit.phase_indices]
+    * root2**circuit.power2
+    * circuit.floatfactor
 )
 
 result = np.sum(contributions)
