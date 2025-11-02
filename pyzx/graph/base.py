@@ -284,6 +284,16 @@ class BaseGraph(Generic[VT, ET], metaclass=DocstringMeta):
                         phase=other.phase(v),
                         qubit=other.qubit(v),
                         row=offset + other.row(v))
+
+
+                # preserve symbolic phases
+                vertex = vtab[v]
+                other_phase_vars = other._phaseVars[v]
+                assert len(other_phase_vars) <= 1
+                if len(other_phase_vars) == 1:
+                    self._phaseVars[vertex].clear()
+                    self._phase[vertex] = 0
+                    self._phaseVars[vertex].add(list(other_phase_vars)[0])
         for e in other.edges():
             s,t = other.edge_st(e)
             if not s in inputs and not t in inputs:
