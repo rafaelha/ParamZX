@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyzx"
+version = "0.7.3"
+description = "Python library for quantum circuit rewriting and optimisation using the ZX-calculus"
+authors = [
+    {name = "Aleks Kissinger"},
+    {name = "John van de Wetering"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "matplotlib", 
+    "scipy",
+    "sympy",
+    "lark",
+    "py-spy"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pyzx*"]
+
+
+
+

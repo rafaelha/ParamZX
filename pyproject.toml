@@ -1,0 +1,50 @@
+[project]
+name = "paramzx"
+version = "0.1.0"
+description = "Parameterised ZX-calculus reduction and GPU parallel evaluations"
+authors = [
+    {name = "Matthew Sutcliffe"},
+    {name = "Aleks Kissinger"}
+]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20.0",
+    "matplotlib>=3.3.0",
+    "scipy>=1.7.0",
+    "sympy>=1.8.0",
+    "lark>=1.0.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.0.0",
+    "tqdm>=4.60.0",
+    "pyperclip>=1.8.0",
+    "py-spy>=0.4.1",
+    "jax>=0.4.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "black>=21.0.0",
+    "flake8>=3.8.0",
+    "mypy>=0.800",
+    "py-spy"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pyzx"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
