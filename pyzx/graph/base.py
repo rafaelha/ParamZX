@@ -135,7 +135,7 @@ class BaseGraph(Generic[VT, ET], metaclass=DocstringMeta):
             backend = type(self).backend
         g = Graph(backend = backend)
         g.track_phases = self.track_phases
-        g.scalar = self.scalar.copy()
+        g.scalar = self.scalar.copy(conjugate=adjoint)
         g.merge_vdata = self.merge_vdata
         mult:int = 1
         if adjoint: mult = -1
