@@ -5,7 +5,7 @@ from pyzx.simulation.stab import find_stab
 from functools import cache
 
 
-chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+chars = [f"a{i}" for i in range(1000)]
 
 
 def apply_effect(g: zx.Graph, vertex_types: str, phases: list[str]) -> None:
@@ -48,6 +48,33 @@ def apply_state(g: zx.Graph, vertex_types: str, phases: list[str]) -> None:
                 f"Unknown vertex type {vertex_types[i]}. Only 'X' and 'Z' are allowed."
             )
     g.set_inputs(tuple(new_inputs))
+
+
+def make_parametrized(g: zx.Graph, n_params: int):
+    n_outputs = g.num_outputs()
+    n_inputs = g.num_inputs()
+    g = g.copy()
+    strEffect = "x" * n_params + "/" * (n_outputs - n_params)
+    g_adj = g.adjoint()
+
+    if n_inputs > 0:
+        g.apply_state("0" * n_inputs)
+    apply_effect(g, strEffect, [chars[i] for i in range(n_params)])
+
+    if n_inputs > 0:
+        g_adj.apply_effect("0" * n_outputs)
+    apply_state(g_adj, strEffect, [chars[i] for i in range(n_params)])
+
+    g.compose(g_adj)
+    return g
+
+
+def get_g_list(g: zx.Graph):
+    zx.full_reduce(g, paramSafe=True)
+    g.normalize()
+    g_list = find_stab(g)
+    return g_list
+
 
 @cache
 def make_g_list(n_params: int):
