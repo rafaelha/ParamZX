@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import time
 import itertools
 from pyzx.simulation.evaluate import evaluate_batch, evaluate
-from pyzx.simulation.gen import make_g_list, chars
+from pyzx.simulation.gen import make_g_list
 from pyzx.simulation.compile import compile_circuit
 
 n_params = 5
@@ -10,7 +10,8 @@ g_list = make_g_list(n_params)
 num_graphs = len(g_list)
 
 
-circuit = compile_circuit(g_list, n_params, chars)
+circuit = compile_circuit(g_list, n_params)
+
 
 print("Compiled circuit:")
 print(f"  {circuit.num_graphs} graphs, {circuit.n_params} parameters")
