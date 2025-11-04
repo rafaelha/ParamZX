@@ -51,10 +51,8 @@ class Sampler:
         self._key = key
         return np.array(s)
 
-    def sample(self, num_samples: int, batch_size: int) -> np.ndarray:
+    def sample(self, num_samples: int, batch_size: int = 100) -> np.ndarray:
         batches = []
         for _ in range(ceil(num_samples / batch_size)):
             batches.append(self.sample_batch(batch_size))
         return np.concatenate(batches)[:num_samples]
-
-

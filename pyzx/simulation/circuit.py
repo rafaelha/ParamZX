@@ -46,7 +46,9 @@ def accepts_qubit_list(func):
 
 class Circ:
 
-    def __init__(self, key: jax.random.PRNGKey):
+    def __init__(self, key: jax.random.PRNGKey = None):
+        if key is None:
+            key = jax.random.key(0)
         self.key = key
         self.g = zx.Graph()
         self.last_vertex: dict[int, int] = {}
@@ -223,31 +225,32 @@ class Circ:
         zx.draw(g, labels=labels)
 
 
-key = jax.random.key(0)
-rep_code = Circ(key)
+if __name__ == "__main__":
+    key = jax.random.key(0)
+    rep_code = Circ(key)
 
-rep_code.reset(range(5))
-rep_code.x_error(range(1, 4), 0.1)
-rep_code.x(0)
-# rep_code.z_error(range(1, 4))
-rep_code.tick()
-
-for r in range(1):
-    rep_code.cnot(1, 0)
-    rep_code.cnot(2, 4)
-    rep_code.cnot(2, 0)
-    rep_code.cnot(3, 4)
-    rep_code.depolarize2(3, 4, 0.1)
-
-    rep_code.tick()
-    rep_code.x_error([0, 4], 0.1)
-    rep_code.tick()
-    # rep_code.x_error([1, 2, 3])
-
-    rep_code.tick()
-    rep_code.mr([0, 4])
+    rep_code.reset(range(5))
+    rep_code.x_error(range(1, 4), 0.1)
+    rep_code.x(0)
+    # rep_code.z_error(range(1, 4))
     rep_code.tick()
 
-rep_code.m([1, 2, 3])
+    for r in range(1):
+        rep_code.cnot(1, 0)
+        rep_code.cnot(2, 4)
+        rep_code.cnot(2, 0)
+        rep_code.cnot(3, 4)
+        rep_code.depolarize2(3, 4, 0.1)
 
-rep_code.diagram(labels=False)
+        rep_code.tick()
+        rep_code.x_error([0, 4], 0.1)
+        rep_code.tick()
+        # rep_code.x_error([1, 2, 3])
+
+        rep_code.tick()
+        rep_code.mr([0, 4])
+        rep_code.tick()
+
+    rep_code.m([1, 2, 3])
+
+    rep_code.diagram(labels=False)
