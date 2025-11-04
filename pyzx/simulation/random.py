@@ -4,9 +4,14 @@ import abc
 
 
 class Channel(abc.ABC):
+    logits: jnp.ndarray
+
     @abc.abstractmethod
     def sample(self, num_samples: int = 1):
         pass
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(probs={jnp.exp(self.logits)})"
 
 
 class PauliChannel1:
@@ -122,9 +127,14 @@ class Error(Channel):
         self._key = key
         self.p = p
 
-    def sample(self, num_samples: int = 1):
+    def sample(self, num_samples: int = 1, num_bits: int = 1):
         self._key, subkey = jax.random.split(self._key)
         samples = jax.random.bernoulli(subkey, self.p, shape=(num_samples,)).astype(
             jnp.uint8
         )
-        return samples
+        return jnp.repeat(samples[:, None], num_bits, axis=1)
+
+
+key = jax.random.key(0)
+error = Error(0.1, key)
+print(error.sample(10, 3))

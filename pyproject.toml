@@ -21,6 +21,7 @@ dependencies = [
     "pyperclip>=1.8.0",
     "py-spy>=0.4.1",
     "jax>=0.4.13",
+    "stim>=1.15.0",
 ]
 
 [project.optional-dependencies]
